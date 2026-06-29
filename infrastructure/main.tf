@@ -125,6 +125,12 @@ resource "aws_secretsmanager_secret" "claude_api" {
   kms_key_id  = aws_kms_key.main.arn
 }
 
+resource "aws_secretsmanager_secret" "pexels_api" {
+  name        = "${var.project_name}/pexels-api-key"
+  description = "Pexels API key for fetching nature video clips"
+  kms_key_id  = aws_kms_key.main.arn
+}
+
 resource "aws_iam_role" "lambda_role" {
   name = "${var.project_name}-lambda-role"
   assume_role_policy = jsonencode({
@@ -151,7 +157,11 @@ resource "aws_iam_role_policy" "lambda_policy" {
       {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [aws_secretsmanager_secret.youtube_creds.arn,aws_secretsmanager_secret.claude_api.arn]
+        Resource = [
+          aws_secretsmanager_secret.youtube_creds.arn,
+          aws_secretsmanager_secret.claude_api.arn,
+          aws_secretsmanager_secret.pexels_api.arn,
+        ]
       },
       {
         Effect   = "Allow"
@@ -308,6 +318,47 @@ resource "aws_lambda_permission" "allow_eventbridge" {
   function_name = aws_lambda_function.upload_handler.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.every_6_hours.arn
+}
+
+resource "aws_lambda_function" "clip_fetcher" {
+  function_name    = "${var.project_name}-clip-fetcher"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "clip_fetcher.lambda_handler"
+  runtime          = "python3.12"
+  timeout          = 300
+  memory_size      = 1024
+  filename         = data.archive_file.upload_handler_zip.output_path
+  source_code_hash = data.archive_file.upload_handler_zip.output_base64sha256
+  layers           = [aws_lambda_layer_version.ffmpeg.arn]
+  ephemeral_storage { size = 4096 }
+  tracing_config { mode = "Active" }
+  environment {
+    variables = {
+      S3_BUCKET_NAME     = aws_s3_bucket.videos.id
+      PEXELS_SECRET_NAME = aws_secretsmanager_secret.pexels_api.name
+    }
+  }
+  tags = { Project = var.project_name }
+}
+
+resource "aws_cloudwatch_event_rule" "clip_fetch_schedule" {
+  name                = "${var.project_name}-clip-fetch"
+  description         = "Fetch 2 fresh nature clips from Pexels every 12 hours"
+  schedule_expression = "rate(12 hours)"
+}
+
+resource "aws_cloudwatch_event_target" "clip_fetch_target" {
+  rule      = aws_cloudwatch_event_rule.clip_fetch_schedule.name
+  target_id = "ClipFetcher"
+  arn       = aws_lambda_function.clip_fetcher.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_clip_fetcher" {
+  statement_id  = "AllowEventBridgeInvokeClipFetcher"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.clip_fetcher.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.clip_fetch_schedule.arn
 }
 
 resource "aws_cloudwatch_metric_alarm" "upload_failures" {
