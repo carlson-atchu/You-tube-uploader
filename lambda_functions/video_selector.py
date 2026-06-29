@@ -91,7 +91,8 @@ class VideoSelector:
         topics = _TOPIC_POOLS.get(category, ["general knowledge"])
         topic  = random.choice(topics)
 
-        payload = json.dumps({"category": category, "topic": topic})
+        duration_secs = int(os.environ.get("VIDEO_DURATION_SECS", 60 * 60 * 3))
+        payload = json.dumps({"category": category, "topic": topic, "duration_secs": duration_secs})
         logger.info("Invoking video generation Lambda for topic: %s", topic)
 
         resp = lam.invoke(

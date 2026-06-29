@@ -52,10 +52,12 @@ def lambda_handler(event, context):
 
     logger.info("Generating %s video on topic: %s", category, topic)
 
+    duration_secs = event.get("duration_secs", 60 * 60 * 3)
+
     if category == "kids_learning":
         local_video = generate_kids_video(topic)
     else:
-        local_video = generate_nature_video(topic)
+        local_video = generate_nature_video(topic, duration_secs=duration_secs)
 
     if not local_video or not os.path.exists(local_video):
         return {"statusCode": 500, "body": json.dumps({"error": "Video generation failed"})}
@@ -215,17 +217,15 @@ def _get_audio_duration(path: str) -> float:
 
 # ── Nature Relaxation Video ───────────────────────────────────────────────────
 
-def generate_nature_video(topic: str) -> str:
+def generate_nature_video(topic: str, duration_secs: int = 60 * 60 * 3) -> str:
     """
-    Assembles a 3-hour nature video by:
-    1. Looping a base jungle/rain video from /tmp/assets/nature/
-    2. Overlaying rain audio from /tmp/assets/audio/
-    3. Adding subtle title overlay with ffmpeg
+    Assembles a nature video by looping a jungle/rain clip + rain audio overlay.
+    duration_secs defaults to 3 hours; pass a shorter value for previews.
     Assets are downloaded from S3 to /tmp/assets on first invocation and reused on warm starts.
     """
     assets_dir  = "/tmp/assets/nature"
     audio_dir   = "/tmp/assets/audio"
-    target_secs = 60 * 60 * 3   # 3 hours
+    target_secs = duration_secs
 
     # Pick a base clip
     clips = list(Path(assets_dir).glob("*.mp4"))

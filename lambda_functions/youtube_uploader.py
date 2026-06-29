@@ -96,4 +96,5 @@ class YouTubeUploader:
         )
         # Refresh access token
         creds.refresh(Request())
-        return build(API_SERVICE_NAME, API_VERSION, credentials=creds)
+        return build(API_SERVICE_NAME, API_VERSION, credentials=creds,
+                     cache_discovery=False, static_discovery=False)

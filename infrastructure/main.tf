@@ -16,7 +16,8 @@ variable "aws_region"       { default = "us-east-1" }
 variable "project_name"     { default = "yt-auto-uploader" }
 variable "upload_mode"      { default = "dual" }
 variable "channel_category" { default = "kids_learning" }
-variable "schedule_hours"   { default = 6 }
+variable "schedule_hours"      { default = 6 }
+variable "video_duration_secs" { default = 10800 }  # 3 hours default; set to 300 for preview
 
 data "aws_caller_identity" "current" {}
 
@@ -198,6 +199,7 @@ resource "aws_lambda_function" "upload_handler" {
   source_code_hash = data.archive_file.upload_handler_zip.output_base64sha256
   layers           = [aws_lambda_layer_version.python_deps.arn]
   tracing_config { mode = "Active" }
+  ephemeral_storage { size = 10240 }
   environment {
     variables = {
       S3_BUCKET_NAME        = aws_s3_bucket.videos.id
@@ -208,6 +210,7 @@ resource "aws_lambda_function" "upload_handler" {
       YOUTUBE_SECRET_NAME   = aws_secretsmanager_secret.youtube_creds.name
       CLAUDE_SECRET_NAME    = aws_secretsmanager_secret.claude_api.name
       VIDEO_GEN_LAMBDA_NAME = aws_lambda_function.video_generator.function_name
+      VIDEO_DURATION_SECS   = tostring(var.video_duration_secs)
     }
   }
   tags = { Project = var.project_name }
