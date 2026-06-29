@@ -1,0 +1,19 @@
+# Credentials — never commit
+client_secret.json
+youtube_credentials.json
+*.pem
+*.key
+
+# Terraform state and provider cache
+infrastructure/.terraform/
+infrastructure/terraform.tfstate
+infrastructure/terraform.tfstate.backup
+
+# Lambda build artifacts (zips are built by scripts/build_layers.sh)
+infrastructure/layers/
+infrastructure/upload_handler.zip
+infrastructure/video_generator.zip
+
+# Large media assets (stored in S3, not git)
+assets/nature/
+assets/audio/

@@ -20,7 +20,8 @@ from pathlib import Path
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-s3 = boto3.client("s3")
+s3     = boto3.client("s3")
+polly  = boto3.client("polly")
 
 ASSETS_LOCAL = "/tmp/assets"
 
@@ -86,13 +87,12 @@ def generate_kids_video(topic: str) -> str:
     Uses: ffmpeg (Lambda layer) + PIL for image generation
     """
     from PIL import Image, ImageDraw, ImageFont
-    import pyttsx3
 
     facts = _get_facts_for_topic(topic)
     slide_paths = []
     audio_paths = []
 
-    font_path = "/tmp/assets/fonts/Nunito-Bold.ttf"  # bundled in Lambda layer
+    font_path = "/tmp/assets/fonts/Nunito-Bold.ttf"
     bg_colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD"]
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -122,7 +122,7 @@ def generate_kids_video(topic: str) -> str:
 
             # — TTS audio for this slide —
             tts_text = f"{heading}. {fact_text}"
-            audio_path = os.path.join(tmpdir, f"audio_{i:02d}.wav")
+            audio_path = os.path.join(tmpdir, f"audio_{i:02d}.mp3")
             _tts_to_file(tts_text, audio_path)
             audio_paths.append(audio_path)
 
@@ -153,11 +153,15 @@ def _get_facts_for_topic(topic: str) -> list[tuple[str, str]]:
 
 
 def _tts_to_file(text: str, output_path: str):
-    """Generate WAV audio from text using espeak (available in Lambda layer)."""
-    subprocess.run(
-        ["espeak", "-w", output_path, "-s", "140", "-v", "en-us", text],
-        check=True, capture_output=True
+    """Generate MP3 audio from text using AWS Polly."""
+    resp = polly.synthesize_speech(
+        Text=text,
+        OutputFormat="mp3",
+        VoiceId="Joanna",
+        Engine="neural",
     )
+    with open(output_path, "wb") as f:
+        f.write(resp["AudioStream"].read())
 
 
 def _assemble_slideshow(slide_paths: list, audio_paths: list, output: str):

@@ -171,6 +171,11 @@ resource "aws_iam_role_policy" "lambda_policy" {
         Effect   = "Allow"
         Action   = ["xray:PutTraceSegments","xray:PutTelemetryRecords"]
         Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["polly:SynthesizeSpeech"]
+        Resource = "*"
       }
     ]
   })
@@ -246,7 +251,7 @@ resource "aws_lambda_function" "video_generator" {
   source_code_hash = data.archive_file.video_generator_zip.output_base64sha256
   layers           = [
     aws_lambda_layer_version.python_deps.arn,
-    "arn:aws:lambda:us-east-1:798048731032:layer:yt-auto-uploader-ffmpeg:2"
+    aws_lambda_layer_version.ffmpeg.arn,
   ]
   tracing_config { mode = "Active" }
   environment {
@@ -264,6 +269,21 @@ resource "aws_lambda_layer_version" "python_deps" {
   layer_name          = "${var.project_name}-python-deps"
   filename            = "${path.module}/layers/python_deps.zip"
   source_code_hash    = filebase64sha256("${path.module}/layers/python_deps.zip")
+  compatible_runtimes = ["python3.12"]
+}
+
+resource "aws_s3_object" "ffmpeg_layer_zip" {
+  bucket = aws_s3_bucket.videos.id
+  key    = "layers/ffmpeg.zip"
+  source = "${path.module}/layers/ffmpeg.zip"
+  etag   = filemd5("${path.module}/layers/ffmpeg.zip")
+}
+
+resource "aws_lambda_layer_version" "ffmpeg" {
+  layer_name          = "${var.project_name}-ffmpeg"
+  s3_bucket           = aws_s3_object.ffmpeg_layer_zip.bucket
+  s3_key              = aws_s3_object.ffmpeg_layer_zip.key
+  source_code_hash    = filebase64sha256("${path.module}/layers/ffmpeg.zip")
   compatible_runtimes = ["python3.12"]
 }
 

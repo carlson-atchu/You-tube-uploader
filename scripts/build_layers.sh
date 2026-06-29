@@ -11,6 +11,7 @@ echo "════════════════════════�
 echo "  Building Python dependencies layer"
 echo "════════════════════════════════════════"
 docker run --rm \
+  --platform linux/amd64 \
   -v "$(pwd)/$LAYERS_DIR:/out" \
   public.ecr.aws/lambda/python:3.12 \
   bash -c "
@@ -23,6 +24,7 @@ docker run --rm \
       pyttsx3 \
       -t /tmp/python/lib/python3.12/site-packages/ && \
     rm -rf /tmp/python/lib/python3.12/site-packages/googleapiclient/discovery_cache && \
+    rm -f /out/python_deps.zip && \
     cd /tmp && zip -r9 /out/python_deps.zip python/
   "
 echo "✅  python_deps.zip created"
