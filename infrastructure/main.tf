@@ -17,7 +17,7 @@ variable "project_name"     { default = "yt-auto-uploader" }
 variable "upload_mode"      { default = "dual" }
 variable "channel_category" { default = "kids_learning" }
 variable "schedule_hours"      { default = 6 }
-variable "video_duration_secs" { default = 10800 }  # 3 hours default; set to 300 for preview
+variable "video_duration_secs" { default = 600 }  # 10 minutes
 
 data "aws_caller_identity" "current" {}
 
