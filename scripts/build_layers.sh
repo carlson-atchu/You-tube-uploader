@@ -22,6 +22,7 @@ docker run --rm \
       Pillow \
       pyttsx3 \
       -t /tmp/python/lib/python3.12/site-packages/ && \
+    rm -rf /tmp/python/lib/python3.12/site-packages/googleapiclient/discovery_cache && \
     cd /tmp && zip -r9 /out/python_deps.zip python/
   "
 echo "✅  python_deps.zip created"

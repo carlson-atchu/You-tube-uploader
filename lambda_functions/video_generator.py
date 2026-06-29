@@ -22,12 +22,32 @@ logger.setLevel(logging.INFO)
 
 s3 = boto3.client("s3")
 
+ASSETS_LOCAL = "/tmp/assets"
+
+
+def _ensure_assets(bucket: str, prefix: str):
+    """Download assets from S3 to /tmp/assets on first invocation; reused on warm starts."""
+    keys = [
+        ("nature/jungle_rain_clip.mp4", f"{ASSETS_LOCAL}/nature/jungle_rain_clip.mp4"),
+        ("audio/rain_jungle_1.mp3",     f"{ASSETS_LOCAL}/audio/rain_jungle_1.mp3"),
+        ("fonts/Nunito-Bold.ttf",       f"{ASSETS_LOCAL}/fonts/Nunito-Bold.ttf"),
+    ]
+    for rel, local_path in keys:
+        if not os.path.exists(local_path):
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            s3_key = f"{prefix}{rel}"
+            logger.info("Downloading s3://%s/%s → %s", bucket, s3_key, local_path)
+            s3.download_file(bucket, s3_key, local_path)
+
 
 def lambda_handler(event, context):
-    category  = event.get("category", "kids_learning")
-    topic     = event.get("topic", "")
-    bucket    = os.environ["S3_BUCKET_NAME"]
-    gen_prefix = os.environ.get("GENERATED_PREFIX", "generated-videos/")
+    category     = event.get("category", "kids_learning")
+    topic        = event.get("topic", "")
+    bucket       = os.environ["S3_BUCKET_NAME"]
+    gen_prefix   = os.environ.get("GENERATED_PREFIX", "generated-videos/")
+    assets_prefix = os.environ.get("ASSETS_PREFIX", "assets/")
+
+    _ensure_assets(bucket, assets_prefix)
 
     logger.info("Generating %s video on topic: %s", category, topic)
 
@@ -61,7 +81,7 @@ def generate_kids_video(topic: str) -> str:
     Creates a simple animated slideshow video with:
     - Colorful title card
     - 4–6 fact slides with large text
-    - Background music (looped from /opt/assets/bg_kids.mp3)
+    - Background music (looped from /tmp/assets/bg_kids.mp3)
     - Text-to-speech narration per slide
     Uses: ffmpeg (Lambda layer) + PIL for image generation
     """
@@ -72,7 +92,7 @@ def generate_kids_video(topic: str) -> str:
     slide_paths = []
     audio_paths = []
 
-    font_path = "/opt/assets/fonts/Nunito-Bold.ttf"  # bundled in Lambda layer
+    font_path = "/tmp/assets/fonts/Nunito-Bold.ttf"  # bundled in Lambda layer
     bg_colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD"]
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -194,14 +214,13 @@ def _get_audio_duration(path: str) -> float:
 def generate_nature_video(topic: str) -> str:
     """
     Assembles a 3-hour nature video by:
-    1. Looping a base jungle/rain video from /opt/assets/nature/
-    2. Overlaying rain audio from /opt/assets/audio/
+    1. Looping a base jungle/rain video from /tmp/assets/nature/
+    2. Overlaying rain audio from /tmp/assets/audio/
     3. Adding subtle title overlay with ffmpeg
-    Assets are bundled in a Lambda layer (read-only, <250MB unzipped).
-    For production, longer source clips can be pulled from S3.
+    Assets are downloaded from S3 to /tmp/assets on first invocation and reused on warm starts.
     """
-    assets_dir  = "/opt/assets/nature"
-    audio_dir   = "/opt/assets/audio"
+    assets_dir  = "/tmp/assets/nature"
+    audio_dir   = "/tmp/assets/audio"
     target_secs = 60 * 60 * 3   # 3 hours
 
     # Pick a base clip
